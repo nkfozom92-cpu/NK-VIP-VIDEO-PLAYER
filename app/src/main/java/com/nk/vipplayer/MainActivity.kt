@@ -130,6 +130,57 @@ class MainActivity : Activity() {
             )
         )
 
+
+        // NK VIP VIDEO PLAYER branding overlay
+        val videoBrandLogo = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(5), dp(10), dp(5))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.argb(170, 10, 10, 15))
+                cornerRadius = dp(9).toFloat()
+                setStroke(dp(1), Color.argb(150, 65, 225, 165))
+            }
+            elevation = dp(8).toFloat()
+        }
+
+        val brandMark = TextView(this).apply {
+            text = "NK"
+            textSize = 13f
+            setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.rgb(65, 225, 165))
+                cornerRadius = dp(6).toFloat()
+            }
+        }
+
+        videoBrandLogo.addView(
+            brandMark,
+            LinearLayout.LayoutParams(dp(30), dp(30))
+        )
+
+        val brandName = TextView(this).apply {
+            text = "NK VIP VIDEO PLAYER"
+            textSize = 10f
+            setTextColor(Color.WHITE)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(7), 0, 0, 0)
+        }
+
+        videoBrandLogo.addView(brandName)
+
+        val brandParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.START
+        ).apply {
+            setMargins(dp(12), dp(12), dp(12), dp(12))
+        }
+
+        playerView.addView(videoBrandLogo, brandParams)
+
         setupPlayerGestures()
 
         favorites.addAll(
