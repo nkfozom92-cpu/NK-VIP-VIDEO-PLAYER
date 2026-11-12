@@ -30,9 +30,20 @@ class MainActivity : Activity() {
     private lateinit var videoList: LinearLayout
     private lateinit var countText: TextView
     private var isZoomed = false
+    private val allVideos = mutableListOf<VideoItem>()
+    private val favorites = mutableSetOf<String>()
+    private var currentTab = "ALL"
 
     private val PICK_VIDEO = 1001
     private val PERMISSION_REQUEST = 2001
+
+    data class VideoItem(
+        val uri: Uri,
+        val name: String,
+        val duration: Long,
+        val size: Long,
+        val id: Long
+    )
 
     private fun dp(v: Int) =
         (v * resources.displayMetrics.density).toInt()
@@ -83,30 +94,44 @@ class MainActivity : Activity() {
 
         setupPlayerGestures()
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(7), dp(4), dp(5))
-        }
-
-        val heading = TextView(this).apply {
-            text = "MY VIDEOS"
-            textSize = 17f
-            setTextColor(Color.WHITE)
-        }
-
-        header.addView(
-            heading,
-            LinearLayout.LayoutParams(0, dp(38), 1f)
+        favorites.addAll(
+            getSharedPreferences("NK_FAVORITES", MODE_PRIVATE)
+                .getStringSet("videos", emptySet()) ?: emptySet()
         )
+
+        val tabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(8))
+        }
+
+        val allTab = Button(this).apply {
+            text = "ALL VIDEOS"
+            setOnClickListener {
+                currentTab = "ALL"
+                renderVideos()
+            }
+        }
+
+        val favTab = Button(this).apply {
+            text = "♥ FAVORITES"
+            setOnClickListener {
+                currentTab = "FAVORITES"
+                renderVideos()
+            }
+        }
+
+        tabs.addView(allTab, LinearLayout.LayoutParams(0, dp(46), 1f))
+        tabs.addView(favTab, LinearLayout.LayoutParams(0, dp(46), 1f))
+        page.addView(tabs)
 
         countText = TextView(this).apply {
             text = "0 Videos"
             textSize = 12f
             setTextColor(Color.LTGRAY)
+            gravity = Gravity.END
         }
-        header.addView(countText)
-        page.addView(header)
+        page.addView(countText)
 
         val scroll = ScrollView(this)
 
@@ -123,48 +148,6 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f
-            )
-        )
-
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-
-        val refresh = Button(this).apply {
-            text = "REFRESH"
-            setOnClickListener { checkPermission() }
-        }
-
-        val browse = Button(this).apply {
-            text = "BROWSE FILES"
-            setOnClickListener { openPicker() }
-        }
-
-        buttons.addView(
-            refresh,
-            LinearLayout.LayoutParams(0, dp(48), 1f)
-        )
-
-        buttons.addView(
-            browse,
-            LinearLayout.LayoutParams(0, dp(48), 1f)
-        )
-
-        page.addView(buttons)
-
-        val stop = Button(this).apply {
-            text = "STOP PLAYER"
-            setOnClickListener {
-                player?.stop()
-                status.text = "Playback stopped"
-            }
-        }
-
-        page.addView(
-            stop,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(45)
             )
         )
 
@@ -299,8 +282,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadVideos() {
-        videoList.removeAllViews()
-
+        allVideos.clear()
         val uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
 
         val columns = arrayOf(
@@ -310,72 +292,66 @@ class MainActivity : Activity() {
             MediaStore.Video.Media.SIZE
         )
 
-        var total = 0
-
         try {
             contentResolver.query(
-                uri,
-                columns,
-                null,
-                null,
+                uri, columns, null, null,
                 MediaStore.Video.Media.DATE_ADDED + " DESC"
             )?.use { cursor ->
-
-                val idCol = cursor.getColumnIndexOrThrow(
-                    MediaStore.Video.Media._ID
-                )
-
-                val nameCol = cursor.getColumnIndexOrThrow(
-                    MediaStore.Video.Media.DISPLAY_NAME
-                )
-
-                val durationCol = cursor.getColumnIndexOrThrow(
-                    MediaStore.Video.Media.DURATION
-                )
-
-                val sizeCol = cursor.getColumnIndexOrThrow(
-                    MediaStore.Video.Media.SIZE
-                )
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
-                    val name = cursor.getString(nameCol) ?: "Video"
-                    val duration = cursor.getLong(durationCol)
-                    val size = cursor.getLong(sizeCol)
+                    val videoUri = ContentUris.withAppendedId(uri, id)
 
-                    val videoUri =
-                        ContentUris.withAppendedId(uri, id)
-
-                    addVideo(
-                        videoUri,
-                        name,
-                        duration,
-                        size,
-                        id
+                    allVideos.add(
+                        VideoItem(
+                            videoUri,
+                            cursor.getString(nameCol) ?: "Video",
+                            cursor.getLong(durationCol),
+                            cursor.getLong(sizeCol),
+                            id
+                        )
                     )
-
-                    total++
                 }
             }
-
-            countText.text = "$total Videos"
-
-            if (total == 0) {
-                val empty = TextView(this).apply {
-                    text = "No videos found on your device"
-                    textSize = 14f
-                    gravity = Gravity.CENTER
-                    setTextColor(Color.LTGRAY)
-                    setPadding(0, dp(35), 0, dp(35))
-                }
-                videoList.addView(empty)
-                status.text = "No videos found"
-            } else {
-                status.text = "Tap any video to play"
-            }
-
+            renderVideos()
+            status.text = "Tap any video to play"
         } catch (e: Exception) {
             status.text = "Error: ${e.message}"
+        }
+    }
+
+    private fun renderVideos() {
+        videoList.removeAllViews()
+
+        val shown = if (currentTab == "FAVORITES") {
+            allVideos.filter { favorites.contains(it.uri.toString()) }
+        } else {
+            allVideos
+        }
+
+        countText.text = "${shown.size} Videos"
+
+        if (shown.isEmpty()) {
+            val empty = TextView(this).apply {
+                text = if (currentTab == "FAVORITES")
+                    "No favorite videos yet. Tap ☆ on a video to add it."
+                else
+                    "No videos found on your device"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(Color.LTGRAY)
+                setPadding(dp(12), dp(35), dp(12), dp(35))
+            }
+            videoList.addView(empty)
+            return
+        }
+
+        shown.forEach { item ->
+            addVideo(item.uri, item.name, item.duration, item.size, item.id)
         }
     }
 
@@ -439,6 +415,36 @@ class MainActivity : Activity() {
         row.addView(
             details,
             LinearLayout.LayoutParams(0, dp(80), 1f)
+        )
+
+        val favoriteButton = TextView(this).apply {
+            text = if (favorites.contains(uri.toString())) "★" else "☆"
+            textSize = 27f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(255, 190, 55))
+            setPadding(dp(7), 0, dp(7), 0)
+            setOnClickListener {
+                val key = uri.toString()
+                if (favorites.contains(key)) {
+                    favorites.remove(key)
+                    Toast.makeText(this@MainActivity, "Removed from Favorites", Toast.LENGTH_SHORT).show()
+                } else {
+                    favorites.add(key)
+                    Toast.makeText(this@MainActivity, "Added to Favorites", Toast.LENGTH_SHORT).show()
+                }
+
+                getSharedPreferences("NK_FAVORITES", MODE_PRIVATE)
+                    .edit()
+                    .putStringSet("videos", HashSet(favorites))
+                    .apply()
+
+                renderVideos()
+            }
+        }
+
+        row.addView(
+            favoriteButton,
+            LinearLayout.LayoutParams(dp(42), dp(76))
         )
 
         row.setOnClickListener {
