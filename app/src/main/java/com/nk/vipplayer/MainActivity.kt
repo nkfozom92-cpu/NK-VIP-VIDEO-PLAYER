@@ -41,16 +41,16 @@ class MainActivity : Activity() {
 
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(8))
+            setPadding(dp(12), dp(8), dp(12), dp(5))
             setBackgroundColor(Color.rgb(12, 12, 16))
         }
 
         val title = TextView(this).apply {
             text = "NK VIP VIDEO PLAYER"
-            textSize = 21f
+            textSize = 18f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setPadding(0, dp(8), 0, dp(8))
+            setPadding(0, dp(5), 0, dp(5))
         }
         page.addView(title)
 
@@ -73,14 +73,14 @@ class MainActivity : Activity() {
             playerView,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(210)
+                dp(170)
             )
         )
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(12), dp(4), dp(8))
+            setPadding(dp(4), dp(7), dp(4), dp(5))
         }
 
         val heading = TextView(this).apply {
@@ -161,6 +161,17 @@ class MainActivity : Activity() {
                 dp(45)
             )
         )
+
+        page.setOnApplyWindowInsetsListener { view, insets ->
+            val topInset = if (Build.VERSION.SDK_INT >= 30) {
+                insets.getInsets(android.view.WindowInsets.Type.statusBars()).top
+            } else {
+                @Suppress("DEPRECATION")
+                insets.systemWindowInsetTop
+            }
+            view.setPadding(dp(12), dp(8) + topInset, dp(12), dp(5))
+            insets
+        }
 
         setContentView(page)
         checkPermission()
