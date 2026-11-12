@@ -2,6 +2,7 @@ package com.nk.vipplayer
 
 import android.Manifest
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -30,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var videoList: LinearLayout
     private lateinit var countText: TextView
     private var isZoomed = false
+    private var isLandscapeMode = false
     private val allVideos = mutableListOf<VideoItem>()
     private val favorites = mutableSetOf<String>()
     private var currentTab = "ALL"
@@ -89,6 +91,40 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(170)
+            )
+        )
+
+        val rotateButton = TextView(this).apply {
+            text = "↻ ROTATE"
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            setBackgroundColor(Color.rgb(45, 45, 55))
+            elevation = dp(6).toFloat()
+
+            setOnClickListener {
+                isLandscapeMode = !isLandscapeMode
+
+                requestedOrientation = if (isLandscapeMode) {
+                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                } else {
+                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                }
+
+                status.text = if (isLandscapeMode) {
+                    "Landscape Mode"
+                } else {
+                    "Portrait Mode"
+                }
+            }
+        }
+
+        playerView.addView(
+            rotateButton,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END
             )
         )
 
