@@ -27,6 +27,7 @@ class MainActivity : Activity() {
 
     private var player: ExoPlayer? = null
     private lateinit var playerView: PlayerView
+    private lateinit var homePage: LinearLayout
     private lateinit var status: TextView
     private lateinit var videoList: LinearLayout
     private lateinit var countText: TextView
@@ -61,6 +62,8 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(8), dp(12), dp(5))
             setBackgroundColor(Color.rgb(12, 12, 16))
         }
+
+        homePage = page
 
         val title = TextView(this).apply {
             text = "NK VIP VIDEO PLAYER"
@@ -111,11 +114,7 @@ class MainActivity : Activity() {
                     ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 }
 
-                status.text = if (isLandscapeMode) {
-                    "Landscape Mode"
-                } else {
-                    "Portrait Mode"
-                }
+                applyVideoScreenMode()
             }
         }
 
@@ -202,6 +201,67 @@ class MainActivity : Activity() {
         checkPermission()
     }
 
+
+
+    private fun applyVideoScreenMode() {
+        if (!::homePage.isInitialized || !::playerView.isInitialized) return
+
+        val params = playerView.layoutParams as LinearLayout.LayoutParams
+
+        if (isLandscapeMode) {
+            for (i in 0 until homePage.childCount) {
+                val child = homePage.getChildAt(i)
+                child.visibility =
+                    if (child === playerView) View.VISIBLE else View.GONE
+            }
+
+            homePage.setPadding(0, 0, 0, 0)
+            params.width = LinearLayout.LayoutParams.MATCH_PARENT
+            params.height = LinearLayout.LayoutParams.MATCH_PARENT
+
+            if (Build.VERSION.SDK_INT >= 30) {
+                window.insetsController?.hide(
+                    android.view.WindowInsets.Type.statusBars() or
+                    android.view.WindowInsets.Type.navigationBars()
+                )
+                window.insetsController?.systemBarsBehavior =
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility =
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            }
+        } else {
+            for (i in 0 until homePage.childCount) {
+                homePage.getChildAt(i).visibility = View.VISIBLE
+            }
+
+            homePage.setPadding(dp(12), dp(8), dp(12), dp(5))
+            params.width = LinearLayout.LayoutParams.MATCH_PARENT
+            params.height = dp(170)
+
+            if (Build.VERSION.SDK_INT >= 30) {
+                window.insetsController?.show(
+                    android.view.WindowInsets.Type.statusBars() or
+                    android.view.WindowInsets.Type.navigationBars()
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        }
+
+        playerView.layoutParams = params
+    }
+
+    override fun onConfigurationChanged(
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onConfigurationChanged(newConfig)
+        applyVideoScreenMode()
+    }
 
     private fun setupPlayerGestures() {
         var startSpan = 0f
