@@ -11,6 +11,9 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.GestureDetector
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.*
 import androidx.media3.common.MediaItem
@@ -26,6 +29,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var videoList: LinearLayout
     private lateinit var countText: TextView
+    private var isZoomed = false
 
     private val PICK_VIDEO = 1001
     private val PERMISSION_REQUEST = 2001
@@ -76,6 +80,8 @@ class MainActivity : Activity() {
                 dp(170)
             )
         )
+
+        setupPlayerGestures()
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -175,6 +181,82 @@ class MainActivity : Activity() {
 
         setContentView(page)
         checkPermission()
+    }
+
+
+    private fun setupPlayerGestures() {
+        var startSpan = 0f
+
+        val scaleDetector = ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+
+                override fun onScaleBegin(
+                    detector: ScaleGestureDetector
+                ): Boolean {
+                    startSpan = detector.currentSpan
+                    return true
+                }
+
+                override fun onScale(
+                    detector: ScaleGestureDetector
+                ): Boolean {
+                    val current = detector.currentSpan
+
+                    if (!isZoomed && current > startSpan * 1.15f) {
+                        isZoomed = true
+                        playerView.resizeMode =
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        status.text = "Zoom In"
+                    } else if (isZoomed && current < startSpan * 0.85f) {
+                        isZoomed = false
+                        playerView.resizeMode =
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        status.text = "Zoom Out"
+                    }
+
+                    return true
+                }
+            }
+        )
+
+        val gestureDetector = GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+
+                override fun onDown(e: MotionEvent): Boolean {
+                    return true
+                }
+
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    val currentPlayer = player ?: return true
+                    val position = currentPlayer.currentPosition
+                    val duration = currentPlayer.duration
+
+                    if (e.x < playerView.width / 2f) {
+                        currentPlayer.seekTo(
+                            (position - 10_000L).coerceAtLeast(0L)
+                        )
+                        status.text = "⏪ 10 Seconds"
+                    } else {
+                        val next = position + 10_000L
+                        currentPlayer.seekTo(
+                            if (duration > 0) minOf(next, duration)
+                            else next
+                        )
+                        status.text = "⏩ 10 Seconds"
+                    }
+
+                    return true
+                }
+            }
+        )
+
+        playerView.setOnTouchListener { _, event ->
+            scaleDetector.onTouchEvent(event)
+            gestureDetector.onTouchEvent(event)
+            false
+        }
     }
 
     private fun checkPermission() {
