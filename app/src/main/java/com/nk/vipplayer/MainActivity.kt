@@ -7,6 +7,7 @@ import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -33,6 +34,7 @@ class MainActivity : Activity() {
     private lateinit var countText: TextView
     private var isZoomed = false
     private var isLandscapeMode = false
+    private var originalScreenBrightness = -1f
     private val allVideos = mutableListOf<VideoItem>()
     private val favorites = mutableSetOf<String>()
     private var currentTab = "ALL"
@@ -53,6 +55,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        originalScreenBrightness = window.attributes.screenBrightness
 
         window.statusBarColor = Color.rgb(12, 12, 16)
         window.navigationBarColor = Color.BLACK
@@ -238,6 +241,10 @@ class MainActivity : Activity() {
                 homePage.getChildAt(i).visibility = View.VISIBLE
             }
 
+            window.attributes = window.attributes.apply {
+                screenBrightness = originalScreenBrightness
+            }
+
             homePage.setPadding(dp(12), dp(8), dp(12), dp(5))
             params.width = LinearLayout.LayoutParams.MATCH_PARENT
             params.height = dp(170)
@@ -263,8 +270,18 @@ class MainActivity : Activity() {
         applyVideoScreenMode()
     }
 
+
     private fun setupPlayerGestures() {
         var startSpan = 0f
+        var startX = 0f
+        var startY = 0f
+        var startBrightness = 0.5f
+        var startVolume = 0
+        var swipeType = 0
+        var swipeChanged = false
+
+        val audioManager =
+            getSystemService(AUDIO_SERVICE) as AudioManager
 
         val scaleDetector = ScaleGestureDetector(
             this,
@@ -286,12 +303,10 @@ class MainActivity : Activity() {
                         isZoomed = true
                         playerView.resizeMode =
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        status.text = "Zoom In"
                     } else if (isZoomed && current < startSpan * 0.85f) {
                         isZoomed = false
                         playerView.resizeMode =
                             AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        status.text = "Zoom Out"
                     }
 
                     return true
@@ -303,9 +318,7 @@ class MainActivity : Activity() {
             this,
             object : GestureDetector.SimpleOnGestureListener() {
 
-                override fun onDown(e: MotionEvent): Boolean {
-                    return true
-                }
+                override fun onDown(e: MotionEvent): Boolean = true
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
                     val currentPlayer = player ?: return true
@@ -316,24 +329,117 @@ class MainActivity : Activity() {
                         currentPlayer.seekTo(
                             (position - 10_000L).coerceAtLeast(0L)
                         )
-                        status.text = "⏪ 10 Seconds"
+                        Toast.makeText(
+                            this@MainActivity,
+                            "⏪ 10 Seconds",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     } else {
                         val next = position + 10_000L
                         currentPlayer.seekTo(
-                            if (duration > 0) minOf(next, duration)
-                            else next
+                            if (duration > 0) minOf(next, duration) else next
                         )
-                        status.text = "⏩ 10 Seconds"
+                        Toast.makeText(
+                            this@MainActivity,
+                            "⏩ 10 Seconds",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-
                     return true
                 }
             }
         )
 
         playerView.setOnTouchListener { _, event ->
+
             scaleDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event)
+
+            when (event.actionMasked) {
+
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.x
+                    startY = event.y
+                    swipeType = 0
+                    swipeChanged = false
+
+                    val brightness = window.attributes.screenBrightness
+                    startBrightness =
+                        if (brightness in 0f..1f) brightness else 0.5f
+
+                    startVolume = audioManager.getStreamVolume(
+                        AudioManager.STREAM_MUSIC
+                    )
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (isLandscapeMode &&
+                        !scaleDetector.isInProgress
+                    ) {
+                        val deltaY = startY - event.y
+
+                        if (kotlin.math.abs(deltaY) > dp(8)) {
+                            if (swipeType == 0) {
+                                swipeType = if (
+                                    startX < playerView.width / 2f
+                                ) 1 else 2
+                            }
+
+                            val fraction =
+                                deltaY / playerView.height.toFloat()
+
+                            if (swipeType == 1) {
+                                val brightness = (
+                                    startBrightness + fraction
+                                ).coerceIn(0.05f, 1.0f)
+
+                                val params = window.attributes
+                                params.screenBrightness = brightness
+                                window.attributes = params
+                                swipeChanged = true
+
+                            } else if (swipeType == 2) {
+                                val maxVolume = audioManager.getStreamMaxVolume(
+                                    AudioManager.STREAM_MUSIC
+                                )
+
+                                val newVolume = (
+                                    startVolume +
+                                    fraction * maxVolume * 2f
+                                ).toInt().coerceIn(0, maxVolume)
+
+                                audioManager.setStreamVolume(
+                                    AudioManager.STREAM_MUSIC,
+                                    newVolume,
+                                    0
+                                )
+                                swipeChanged = true
+                            }
+                        }
+                    }
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (swipeChanged) {
+                        val message = if (swipeType == 1) {
+                            "☀ Brightness adjusted"
+                        } else {
+                            "🔊 Volume adjusted"
+                        }
+
+                        Toast.makeText(
+                            this@MainActivity,
+                            message,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    swipeType = 0
+                }
+            }
+
             false
         }
     }
