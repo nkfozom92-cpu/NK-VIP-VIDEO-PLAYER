@@ -17,7 +17,9 @@
             android:name=".MainActivity"
             android:screenOrientation="unspecified"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"\n            android:supportsPictureInPicture="true"\n            android:resizeableActivity="true">
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
