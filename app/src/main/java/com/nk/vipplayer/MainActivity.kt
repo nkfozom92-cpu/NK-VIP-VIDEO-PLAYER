@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
+import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,13 +23,20 @@ import android.view.View
 import android.widget.*
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.core.content.ContextCompat
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
 class MainActivity : Activity() {
 
-    private var player: ExoPlayer? = null
+    private var player: MediaController? = null
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var pendingVideoUri: Uri? = null
+    private var backgroundAudioEnabled = false
+    private lateinit var audioButton: TextView
     private lateinit var playerView: PlayerView
     private lateinit var homePage: LinearLayout
     private lateinit var status: TextView
@@ -202,6 +210,44 @@ class MainActivity : Activity() {
             }
         )
 
+
+        audioButton = TextView(this).apply {
+            tag = "nk_overlay_control"
+            text = "♫ AUDIO"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.rgb(20, 115, 82))
+                cornerRadius = dp(9).toFloat()
+                setStroke(dp(1), Color.rgb(65, 225, 165))
+            }
+            elevation = dp(6).toFloat()
+            visibility = View.GONE
+            setOnClickListener {
+                if (player == null) {
+                    Toast.makeText(this@MainActivity, "ভিডিও প্রস্তুত হচ্ছে", Toast.LENGTH_SHORT).show()
+                } else if (Build.VERSION.SDK_INT >= 26) {
+                    backgroundAudioEnabled = true
+                    val params = PictureInPictureParams.Builder()
+                        .setAspectRatio(Rational(16, 9))
+                        .build()
+                    enterPictureInPictureMode(params)
+                } else {
+                    Toast.makeText(this@MainActivity, "Floating video-এর জন্য Android 8.0+ প্রয়োজন", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        playerView.addView(
+            audioButton,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.START
+            ).apply { setMargins(dp(12), dp(12), 0, 0) }
+        )
+
         setupPlayerGestures()
 
         favorites.addAll(
@@ -273,6 +319,7 @@ class MainActivity : Activity() {
         }
 
         setContentView(page)
+        setupMediaController()
         checkPermission()
     }
 
@@ -280,6 +327,9 @@ class MainActivity : Activity() {
 
     private fun applyVideoScreenMode() {
         if (!::homePage.isInitialized || !::playerView.isInitialized) return
+        if (::audioButton.isInitialized) {
+            audioButton.visibility = if (isLandscapeMode) View.VISIBLE else View.GONE
+        }
 
         val params = playerView.layoutParams as LinearLayout.LayoutParams
 
@@ -850,38 +900,54 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun playVideo(uri: Uri) {
-        if (player == null) {
-            player = ExoPlayer.Builder(this).build()
-            playerView.player = player
 
-            player?.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    status.text = when (state) {
-                        Player.STATE_BUFFERING -> "Loading video..."
-                        Player.STATE_READY -> "Video ready"
-                        Player.STATE_ENDED -> "Video finished"
-                        else -> "NK VIP Player"
-                    }
+    private fun setupMediaController() {
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        controllerFuture = future
+
+        future.addListener({
+            if (isFinishing) {
+                MediaController.releaseFuture(future)
+                return@addListener
+            }
+            try {
+                player = future.get()
+                playerView.player = player
+                pendingVideoUri?.let { uri ->
+                    pendingVideoUri = null
+                    playVideo(uri)
                 }
-            })
-        }
+            } catch (e: Exception) {
+                status.text = "Playback service error: ${e.message}"
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
 
-        player?.setMediaItem(MediaItem.fromUri(uri))
-        player?.prepare()
-        player?.playWhenReady = true
+    private fun playVideo(uri: Uri) {
+        val controller = player
+        if (controller == null) {
+            pendingVideoUri = uri
+            return
+        }
+        controller.setMediaItem(MediaItem.fromUri(uri))
+        controller.prepare()
+        controller.playWhenReady = true
     }
 
     override fun onStop() {
         super.onStop()
-        if (Build.VERSION.SDK_INT < 24 || !isInPictureInPictureMode) {
+        if (!backgroundAudioEnabled &&
+            (Build.VERSION.SDK_INT < 24 || !isInPictureInPictureMode)
+        ) {
             player?.pause()
         }
     }
 
     override fun onDestroy() {
-        playerView.player = null
-        player?.release()
+        if (::playerView.isInitialized) playerView.player = null
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
         player = null
         super.onDestroy()
     }
