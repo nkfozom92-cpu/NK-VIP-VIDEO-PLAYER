@@ -69,11 +69,27 @@ class MainActivity : Activity() {
         homePage = page
 
         val title = TextView(this).apply {
-            text = "NK VIP VIDEO PLAYER"
-            textSize = 18f
+            text = "▶  NK VIP VIDEO PLAYER"
+            textSize = 19f
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setPadding(0, dp(5), 0, dp(5))
+            setTextColor(Color.rgb(235, 255, 248))
+            typeface = android.graphics.Typeface.create(
+                "sans-serif-black", android.graphics.Typeface.BOLD
+            )
+            letterSpacing = 0.08f
+            setPadding(dp(14), dp(11), dp(14), dp(11))
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(
+                    Color.rgb(10, 35, 33),
+                    Color.rgb(17, 22, 32),
+                    Color.rgb(45, 31, 12)
+                )
+            ).apply {
+                cornerRadius = dp(13).toFloat()
+                setStroke(dp(1), Color.rgb(65, 225, 165))
+            }
+            elevation = dp(4).toFloat()
         }
         page.addView(title)
 
@@ -132,56 +148,6 @@ class MainActivity : Activity() {
 
 
 
-
-        // NK VIP VIDEO PLAYER custom branding
-        val videoBrandLogo = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(9), dp(7), dp(12), dp(7))
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.argb(210, 12, 16, 22))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), Color.rgb(65, 225, 165))
-            }
-            elevation = dp(8).toFloat()
-        }
-
-        val logoIcon = TextView(this).apply {
-            text = "▶"
-            textSize = 17f
-            gravity = Gravity.CENTER
-            setTextColor(Color.BLACK)
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.rgb(65, 225, 165))
-                cornerRadius = dp(7).toFloat()
-            }
-        }
-
-        videoBrandLogo.addView(
-            logoIcon,
-            LinearLayout.LayoutParams(dp(34), dp(34))
-        )
-
-        val logoText = TextView(this).apply {
-            text = "NK VIP\\nVIDEO PLAYER"
-            textSize = 10f
-            setLineSpacing(0f, 1f)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            setPadding(dp(8), 0, 0, 0)
-        }
-
-        videoBrandLogo.addView(logoText)
-
-        val brandParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP or Gravity.START
-        ).apply {
-            setMargins(dp(12), dp(12), 0, 0)
-        }
-
-        playerView.addView(videoBrandLogo, brandParams)
 
         setupPlayerGestures()
 
