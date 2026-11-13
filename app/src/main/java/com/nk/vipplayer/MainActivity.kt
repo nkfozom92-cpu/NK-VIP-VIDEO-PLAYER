@@ -2,6 +2,7 @@ package com.nk.vipplayer
 
 import android.Manifest
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
 import android.content.ContentUris
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.media.AudioManager
 import android.net.Uri
+import android.util.Rational
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -117,6 +119,7 @@ class MainActivity : Activity() {
         )
 
         val rotateButton = TextView(this).apply {
+            tag = "nk_overlay_control"
             text = "↻ ROTATE"
             textSize = 12f
             setTextColor(Color.WHITE)
@@ -148,6 +151,56 @@ class MainActivity : Activity() {
 
 
 
+
+
+        val pipButton = TextView(this).apply {
+            tag = "nk_overlay_control"
+            text = "▣ POP-UP"
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.rgb(25, 105, 82))
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1), Color.rgb(65, 225, 165))
+            }
+            elevation = dp(6).toFloat()
+
+            setOnClickListener {
+                if (player == null || player?.isPlaying != true) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "আগে একটি ভিডিও চালু করুন",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else if (Build.VERSION.SDK_INT >= 26) {
+                    val params = PictureInPictureParams.Builder()
+                        .setAspectRatio(Rational(16, 9))
+                        .build()
+                    enterPictureInPictureMode(params)
+                } else if (Build.VERSION.SDK_INT >= 24) {
+                    @Suppress("DEPRECATION")
+                    enterPictureInPictureMode()
+                } else {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Android 7.0 বা নতুন সংস্করণ প্রয়োজন",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        playerView.addView(
+            pipButton,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.END
+            ).apply {
+                setMargins(0, 0, dp(12), dp(12))
+            }
+        )
 
         setupPlayerGestures()
 
@@ -286,9 +339,30 @@ class MainActivity : Activity() {
         newConfig: android.content.res.Configuration
     ) {
         super.onConfigurationChanged(newConfig)
-        applyVideoScreenMode()
+        if (Build.VERSION.SDK_INT < 24 || !isInPictureInPictureMode) {
+            applyVideoScreenMode()
+        }
     }
 
+
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onPictureInPictureModeChanged(
+            isInPictureInPictureMode, newConfig
+        )
+        if (::playerView.isInitialized) {
+            for (i in 0 until playerView.childCount) {
+                val child = playerView.getChildAt(i)
+                if (child.tag == "nk_overlay_control") {
+                    child.visibility =
+                        if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+                }
+            }
+        }
+    }
 
     private fun setupPlayerGestures() {
         var startSpan = 0f
@@ -800,7 +874,9 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         super.onStop()
-        player?.pause()
+        if (Build.VERSION.SDK_INT < 24 || !isInPictureInPictureMode) {
+            player?.pause()
+        }
     }
 
     override fun onDestroy() {
